@@ -313,7 +313,7 @@ function computeInkMaps(img, wanted = () => true) {
 // pxScale = working pixels per preview pixel (≈1 in preview, ~3.7–5.3 at export).
 function screenLayer(ink, w, h, cfg, angle, pxScale) {
   if (cfg.style === "halftone") {
-    return renderHalftone(ink, w, h, cfg.shape, Math.max(1, cfg.frequency * pxScale), angle);
+    return renderHalftone(ink, w, h, cfg.shape, Math.max(0.5, cfg.frequency * pxScale), angle);
   }
   if (cfg.style === "dither") {
     return renderDither(ink, w, h, cfg.ditherType, cfg.threshold, pxScale);
@@ -943,7 +943,7 @@ function bindUI() {
   onPick("toggle-shape", (v) => editScreen((s) => (s.shape = v)));
   onPick("toggle-dither", (v) => editScreen((s) => (s.ditherType = v)));
   $("slider-frequency").addEventListener("input", (e) =>
-    editScreen((s) => (s.frequency = parseInt(e.target.value, 10)), DEBOUNCE_MS),
+    editScreen((s) => (s.frequency = parseFloat(e.target.value)), DEBOUNCE_MS),
   );
   $("slider-threshold").addEventListener("input", (e) =>
     editScreen((s) => (s.threshold = parseInt(e.target.value, 10)), DEBOUNCE_MS),
