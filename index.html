@@ -170,6 +170,11 @@
 
       <main class="canvas-area" id="canvas-area">
         <div class="canvas-wrapper" id="canvas-wrapper"></div>
+        <div class="zoom-controls" role="group" aria-label="zoom">
+          <button class="btn btn-small" id="zoom-out" type="button" aria-label="alejar" title="Alejar (-)">−</button>
+          <button class="btn btn-small" id="zoom-fit" type="button" title="Ajustar (0)"><span id="zoom-level">100%</span></button>
+          <button class="btn btn-small" id="zoom-in" type="button" aria-label="acercar" title="Acercar (+)">+</button>
+        </div>
       </main>
     </div>
 
@@ -179,5 +184,6 @@
     <script src="js/inks.js"></script>
     <script src="js/separation.js"></script>
     <script src="js/sketch.js"></script>
+    <script src="js/zoom.js"></script>
   </body>
 </html>
