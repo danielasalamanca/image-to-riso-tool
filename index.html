@@ -11,148 +11,161 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&family=JetBrains+Mono:wght@400;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="css/style.css" />
   </head>
   <body>
     <div class="app">
       <aside class="sidebar">
-        <div class="sidebar-title">image to riso</div>
+        <header class="sidebar-head">
+          <h1 class="sidebar-title">image to riso</h1>
+        </header>
 
-        <!-- IMAGE -->
-        <div class="section">
-          <div class="section-label">IMAGEN</div>
-          <button class="btn" id="btn-load" type="button">[ cargar imagen ]</button>
-          <input
-            type="file"
-            id="file-input"
-            accept="image/jpeg,image/png,image/webp"
-            hidden
-          />
-          <div class="section-meta" id="meta-image">
-            sin imagen · también puedes arrastrarla al lienzo
-          </div>
-        </div>
+        <div class="sidebar-body">
+          <!-- IMAGE -->
+          <section class="section">
+            <button class="btn btn-primary" id="btn-load" type="button">Cargar imagen</button>
+            <input
+              type="file"
+              id="file-input"
+              accept="image/jpeg,image/png,image/webp"
+              hidden
+            />
+            <p class="meta" id="meta-image">sin imagen · también puedes arrastrarla al lienzo</p>
+          </section>
 
-        <!-- WORKSHOP -->
-        <div class="section">
-          <div class="section-label">TALLER</div>
-          <div class="format-toggle" id="toggle-workshop">
-            <button class="toggle-btn" type="button" data-value="aoi">aoi club</button>
-            <span class="toggle-sep">|</span>
-            <button class="toggle-btn" type="button" data-value="rata">rata estudio</button>
-          </div>
-        </div>
+          <!-- WORKSHOP -->
+          <section class="section">
+            <h2 class="label">Taller</h2>
+            <div class="seg" id="toggle-workshop">
+              <button class="seg-btn" type="button" data-value="aoi">aoi</button>
+              <button class="seg-btn" type="button" data-value="rata">rata</button>
+              <button class="seg-btn" type="button" data-value="lab360">lab360</button>
+            </div>
+          </section>
 
-        <!-- SEPARATION MODE -->
-        <div class="section">
-          <div class="section-label">SEPARACIÓN</div>
-          <div class="btn-stack" id="group-mode">
-            <button class="btn" type="button" data-value="auto">[ automática ]</button>
-            <button class="btn" type="button" data-value="cmyk">[ cmyk ]</button>
-            <button class="btn" type="button" data-value="rgb">[ rgb ]</button>
-          </div>
-          <div class="section-meta" id="meta-mode"></div>
-        </div>
+          <!-- SEPARATION MODE -->
+          <section class="section">
+            <h2 class="label">Separación</h2>
+            <div class="seg" id="group-mode">
+              <button class="seg-btn" type="button" data-value="auto">Auto</button>
+              <button class="seg-btn" type="button" data-value="cmyk">CMYK</button>
+              <button class="seg-btn" type="button" data-value="rgb">RGB</button>
+            </div>
+            <p class="meta" id="meta-mode"></p>
+          </section>
 
-        <!-- LAYERS -->
-        <div class="section">
-          <div class="section-label">CAPAS</div>
-          <div id="layer-list"></div>
-          <button class="btn" id="btn-add-layer" type="button">[ + capa ]</button>
-          <div class="section-meta" id="meta-layers"></div>
-        </div>
+          <!-- LAYERS -->
+          <section class="section">
+            <div class="label-row">
+              <h2 class="label">Capas</h2>
+              <span class="meta-inline" id="meta-layers"></span>
+            </div>
+            <div id="layer-list"></div>
+            <button class="btn" id="btn-add-layer" type="button">+ Añadir capa</button>
+          </section>
 
-        <!-- SCREENING -->
-        <div class="section">
-          <div class="section-label">TRAMA</div>
-          <div class="field">
-            <div class="field-label">aplicar a</div>
-            <div class="format-toggle" id="toggle-scope"></div>
-          </div>
-          <button class="btn" id="btn-follow" type="button">[ usar trama global ]</button>
-          <div class="section-meta" id="meta-scope"></div>
-
-          <div class="btn-stack" id="group-style">
-            <button class="btn" type="button" data-value="continuous">[ tono continuo ]</button>
-            <button class="btn" type="button" data-value="halftone">[ halftone ]</button>
-            <button class="btn" type="button" data-value="dither">[ dither ]</button>
-          </div>
-
-          <div id="panel-halftone">
+          <!-- SCREENING -->
+          <section class="section">
+            <h2 class="label">Trama</h2>
             <div class="field">
-              <div class="field-label">forma</div>
-              <div class="format-toggle wrap" id="toggle-shape">
-                <button class="toggle-btn" type="button" data-value="circle">circle</button>
-                <span class="toggle-sep">|</span>
-                <button class="toggle-btn" type="button" data-value="line">line</button>
-                <span class="toggle-sep">|</span>
-                <button class="toggle-btn" type="button" data-value="square">square</button>
-                <span class="toggle-sep">|</span>
-                <button class="toggle-btn" type="button" data-value="ellipse">ellipse</button>
-                <span class="toggle-sep">|</span>
-                <button class="toggle-btn" type="button" data-value="cross">cross</button>
-              </div>
+              <span class="field-label">Aplicar a</span>
+              <div class="seg" id="toggle-scope"></div>
             </div>
-            <div class="slider-row">
-              <div class="slider-head">
-                <span class="field-label">frecuencia</span>
-                <span class="slider-value" id="val-frequency"></span>
-              </div>
-              <input type="range" id="slider-frequency" min="3" max="24" step="1" />
-            </div>
-            <div class="slider-row" id="row-angle">
-              <div class="slider-head">
-                <span class="field-label">ángulo</span>
-                <span class="slider-value" id="val-angle"></span>
-              </div>
-              <input type="range" id="slider-angle" min="0" max="90" step="1" />
-            </div>
-            <div class="section-meta" id="meta-angles"></div>
-          </div>
+            <button class="btn btn-small" id="btn-follow" type="button">Usar trama global</button>
+            <p class="meta" id="meta-scope"></p>
 
-          <div id="panel-dither">
             <div class="field">
-              <div class="field-label">tipo</div>
-              <div class="format-toggle wrap" id="toggle-dither">
-                <button class="toggle-btn" type="button" data-value="atkinson">atkinson</button>
-                <span class="toggle-sep">|</span>
-                <button class="toggle-btn" type="button" data-value="floydsteinberg">floydsteinberg</button>
-                <span class="toggle-sep">|</span>
-                <button class="toggle-btn" type="button" data-value="bayer">bayer</button>
-                <span class="toggle-sep">|</span>
-                <button class="toggle-btn" type="button" data-value="none">none</button>
+              <span class="field-label">Estilo</span>
+              <div class="seg" id="group-style">
+                <button class="seg-btn" type="button" data-value="continuous">Continuo</button>
+                <button class="seg-btn" type="button" data-value="halftone">Halftone</button>
+                <button class="seg-btn" type="button" data-value="dither">Dither</button>
               </div>
             </div>
-            <div class="slider-row">
-              <div class="slider-head">
-                <span class="field-label">umbral</span>
-                <span class="slider-value" id="val-threshold"></span>
+
+            <div id="panel-halftone">
+              <div class="field">
+                <span class="field-label">Forma</span>
+                <div class="seg seg-grid" id="toggle-shape">
+                  <button class="seg-btn" type="button" data-value="circle">Círculo</button>
+                  <button class="seg-btn" type="button" data-value="ellipse">Elipse</button>
+                  <button class="seg-btn" type="button" data-value="square">Cuadrado</button>
+                  <button class="seg-btn" type="button" data-value="line">Línea</button>
+                  <button class="seg-btn" type="button" data-value="cross">Cruz</button>
+                </div>
               </div>
-              <input type="range" id="slider-threshold" min="1" max="254" step="1" />
+              <div class="slider-row">
+                <div class="slider-head">
+                  <span class="field-label">Frecuencia</span>
+                  <span class="slider-value" id="val-frequency"></span>
+                </div>
+                <input type="range" id="slider-frequency" min="3" max="24" step="1" />
+              </div>
+              <div class="slider-row" id="row-angle">
+                <div class="slider-head">
+                  <span class="field-label">Ángulo</span>
+                  <span class="slider-value" id="val-angle"></span>
+                </div>
+                <input type="range" id="slider-angle" min="0" max="90" step="1" />
+              </div>
+              <p class="meta" id="meta-angles"></p>
             </div>
-          </div>
+
+            <div id="panel-dither">
+              <div class="field">
+                <span class="field-label">Tipo</span>
+                <div class="seg seg-grid seg-grid-2" id="toggle-dither">
+                  <button class="seg-btn" type="button" data-value="atkinson">Atkinson</button>
+                  <button class="seg-btn" type="button" data-value="floydsteinberg">Floyd–Steinberg</button>
+                  <button class="seg-btn" type="button" data-value="bayer">Bayer</button>
+                  <button class="seg-btn" type="button" data-value="none">Umbral</button>
+                </div>
+              </div>
+              <div class="slider-row">
+                <div class="slider-head">
+                  <span class="field-label">Umbral</span>
+                  <span class="slider-value" id="val-threshold"></span>
+                </div>
+                <input type="range" id="slider-threshold" min="1" max="254" step="1" />
+              </div>
+            </div>
+          </section>
         </div>
 
         <!-- FORMAT + EXPORT -->
-        <div class="sidebar-bottom">
-          <div class="format-toggle" id="toggle-format">
-            <button class="toggle-btn" type="button" data-value="A4">A4</button>
-            <span class="toggle-sep">|</span>
-            <button class="toggle-btn" type="button" data-value="A3">A3</button>
+        <footer class="sidebar-foot">
+          <h2 class="label">Página</h2>
+          <div class="page-row">
+            <div class="seg" id="toggle-format">
+              <button class="seg-btn" type="button" data-value="A4">A4</button>
+              <button class="seg-btn" type="button" data-value="A3">A3</button>
+            </div>
+            <div class="seg" id="toggle-orientation">
+              <button class="seg-btn" type="button" data-value="portrait" title="Vertical" aria-label="Vertical">
+                <svg width="10" height="13" viewBox="0 0 10 13" aria-hidden="true"><rect x="0.5" y="0.5" width="9" height="12" rx="1" fill="none" stroke="currentColor" /></svg>
+              </button>
+              <button class="seg-btn" type="button" data-value="landscape" title="Horizontal" aria-label="Horizontal">
+                <svg width="13" height="10" viewBox="0 0 13 10" aria-hidden="true"><rect x="0.5" y="0.5" width="12" height="9" rx="1" fill="none" stroke="currentColor" /></svg>
+              </button>
+            </div>
           </div>
-          <div class="format-toggle" id="toggle-orientation">
-            <button class="toggle-btn" type="button" data-value="portrait">vertical</button>
-            <span class="toggle-sep">|</span>
-            <button class="toggle-btn" type="button" data-value="landscape">horizontal</button>
+          <div class="seg" id="toggle-fit">
+            <button class="seg-btn" type="button" data-value="contain">Contener</button>
+            <button class="seg-btn" type="button" data-value="cover">Rellenar</button>
           </div>
-          <button class="btn btn-export" id="btn-pdf-color" type="button">[ export PDF color ]</button>
-          <button class="btn btn-export" id="btn-pdf-bw" type="button">[ export PDF b/n ]</button>
-          <button class="btn btn-export" id="btn-png-layers" type="button">[ export PNG capas ]</button>
-          <div class="section-meta" id="meta-status">carga una imagen para empezar</div>
-        </div>
+
+          <h2 class="label label-export">Exportar</h2>
+          <div class="export-grid">
+            <button class="btn btn-primary btn-export" id="btn-pdf-color" type="button">PDF color</button>
+            <button class="btn btn-export" id="btn-pdf-bw" type="button">PDF b/n</button>
+            <button class="btn btn-export" id="btn-png-color" type="button">PNG color</button>
+            <button class="btn btn-export" id="btn-png-layers" type="button">PNG capas</button>
+          </div>
+          <p class="meta status" id="meta-status">carga una imagen para empezar</p>
+        </footer>
       </aside>
 
       <main class="canvas-area" id="canvas-area">
@@ -162,8 +175,9 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="libs/p5.riso.js"></script>
-    <script src="inks.js"></script>
-    <script src="sketch.js"></script>
+    <script src="js/vendor/p5.riso.js"></script>
+    <script src="js/inks.js"></script>
+    <script src="js/separation.js"></script>
+    <script src="js/sketch.js"></script>
   </body>
 </html>

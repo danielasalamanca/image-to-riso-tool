@@ -19,7 +19,7 @@ const DEFAULT_ANGLES = [15, 75, 0, 45];
 const CMYK_CHANNELS = ["c", "m", "y", "k"];
 const RGB_CHANNELS = ["r", "g", "b"];
 const DEBOUNCE_MS = 200;
-const GUIDE_COLOR = "#D0CCC4";
+const GUIDE_COLOR = "#D4D4D4";
 
 // Pipeline stages, cheapest first. Running a stage also runs every cheaper one.
 const STAGE = { COMPOSITE: 0, PAINT: 1, SCREEN: 2, REBUILD: 3 };
@@ -31,6 +31,7 @@ const state = {
   mode: "auto", // auto | cmyk | rgb
   format: "A4",
   orientation: "portrait", // portrait | landscape
+  fit: "contain", // contain (whole image, may leave paper bands) | cover (fills the printable area, crops)
   layers: [],
   // Global screening settings (layers may override them, except the angle which is always per layer)
   screen: {
@@ -63,20 +64,6 @@ const nativeGetContext = HTMLCanvasElement.prototype.getContext;
 HTMLCanvasElement.prototype.getContext = function (type, options) {
   if (type === "2d") options = Object.assign({ willReadFrequently: true }, options);
   return nativeGetContext.call(this, type, options);
-};
-
-
-// p5.riso caches lookups with searchColor.join(""), so e.g. [1,23,4] and
-// [12,3,4] collide. Use a numeric key instead (also much faster on big images).
-RisoChannelMapper.prototype.findClosestColor = function (searchColor) {
-  const key = (searchColor[0] << 16) | (searchColor[1] << 8) | searchColor[2];
-  if (!this._cache) this._cache = new Map();
-  let found = this._cache.get(key);
-  if (found) return found;
-  const toSearch = this.perceptual ? this.rgbToLab(searchColor) : searchColor;
-  found = this.tree.nearestNeighbor([toSearch, []]).best;
-  this._cache.set(key, found);
-  return found;
 };
 
 // ── P5 ──────────────────────────────────────────
@@ -120,16 +107,15 @@ function draw() {
 function drawEmptyState() {
   noStroke();
   textAlign(CENTER, CENTER);
-  fill("#2A2A2A");
-  textFont("Chakra Petch");
+  textFont("Inter");
+  fill("#111111");
   textStyle(BOLD);
-  textSize(Math.round(width * 0.075));
-  text("riso separator", width / 2, height / 2 - 22);
-  fill("#7A7670");
-  textFont("JetBrains Mono");
+  textSize(Math.round(width * 0.05));
+  text("image to riso", width / 2, height / 2 - 16);
+  fill("#737373");
   textStyle(NORMAL);
-  textSize(12);
-  text("arrastra una imagen aquí o usa [ cargar imagen ]", width / 2, height / 2 + 26);
+  textSize(13);
+  text("arrastra una imagen aquí o usa Cargar imagen", width / 2, height / 2 + 20);
 }
 
 // Preview-only guide: never part of an export
@@ -168,6 +154,22 @@ function printableRect(pw, ph) {
   const sx = pw / mw;
   const sy = ph / mh;
   return { x: ((mw - aw) / 2) * sx, y: ((mh - ah) / 2) * sy, w: aw * sx, h: ah * sy };
+}
+
+// Where the source goes inside area: rect = destination in whole pixels,
+// crop = source region. contain shows the whole image; cover fills the area
+// and crops the excess, centred.
+function placeImage(area, iw, ih) {
+  if (state.fit === "contain") {
+    return { rect: containRect(area, iw, ih), crop: { x: 0, y: 0, w: iw, h: ih } };
+  }
+  const x = Math.round(area.x);
+  const y = Math.round(area.y);
+  const rect = { x, y, w: Math.round(area.x + area.w) - x, h: Math.round(area.y + area.h) - y };
+  const s = Math.max(rect.w / iw, rect.h / ih);
+  const cw = rect.w / s;
+  const ch = rect.h / s;
+  return { rect, crop: { x: (iw - cw) / 2, y: (ih - ch) / 2, w: cw, h: ch } };
 }
 
 // Fit (contain) an iw x ih image inside area, centred, in whole pixels
@@ -259,74 +261,50 @@ function rebuildRisoLayers() {
   state.layers.forEach((L) => new Riso(inkBySlug(L.ink).rgb.slice(), width, height));
 }
 
-function mappedSteps() {
-  // (1/steps + 1)^N combinations: keep 4 inks at 0.1
-  return state.layers.length >= 4 ? 0.1 : 0.05;
-}
-
 // ── SEPARATION ──────────────────────────────────
 
-// Draw the source on white (transparent pixels read as paper) at w x h.
+// Draw the crop of the source on white (transparent pixels read as paper) at w x h.
 // Returns a p5.Graphics: the caller must .remove() it.
-function renderSource(w, h) {
+function renderSource(w, h, crop) {
   const g = createGraphics(w, h);
   g.drawingContext.imageSmoothingQuality = "high";
   g.background(255);
-  g.image(srcImg, 0, 0, w, h);
+  g.image(srcImg, 0, 0, w, h, crop.x, crop.y, crop.w, crop.h);
   return g;
 }
 
 function buildWorkImage() {
-  const rect = containRect(printableRect(width, height), srcImg.width, srcImg.height);
+  const { rect, crop } = placeImage(printableRect(width, height), srcImg.width, srcImg.height);
   const s = Math.min(1, MAX_PREVIEW_IMG / Math.max(rect.w, rect.h));
   const ww = Math.max(1, Math.round(rect.w * s));
   const wh = Math.max(1, Math.round(rect.h * s));
-  const g = renderSource(ww, wh);
+  const g = renderSource(ww, wh, crop);
   const img = g.get();
   g.remove();
   work = { img, rect, pxScale: ww / rect.w };
 }
 
-// Ink coverage per layer (Uint8ClampedArray, 255 = full ink).
-// lean = true is used for 300 dpi exports to avoid allocating one full-size
-// p5.Image per channel; wanted(i) lets cmyk/rgb skip layers that won't be used.
-function computeInkMaps(img, lean = false, wanted = () => true) {
+// Ink coverage per layer (Uint8ClampedArray, 255 = full ink), see separation.js.
+// wanted(i) = false skips layers that won't be used (hidden layers on export).
+function computeInkMaps(img, wanted = () => true) {
   const n = img.width * img.height;
-
-  if (state.mode === "auto") {
-    if (lean) return mappedInkMapsLean(img, mappedSteps());
-    const channels = extractMappedChannels(img, mappedSteps(), true);
-    return channels.map((ch) => {
-      const ink = new Uint8ClampedArray(n);
-      for (let i = 0, p = 3; i < n; i++, p += 4) ink[i] = ch.pixels[p];
-      return ink;
-    });
-  }
-
-  return state.layers.map((L, idx) => {
-    if (!wanted(idx)) return null;
-    const ch =
-      state.mode === "cmyk" ? extractCMYKChannel(img, L.cmyk) : extractRGBChannel(img, L.rgb);
-    // p5.riso channels are "light = no ink"
-    const ink = new Uint8ClampedArray(n);
-    for (let i = 0, p = 0; i < n; i++, p += 4) ink[i] = 255 - ch.pixels[p];
-    return ink;
-  });
-}
-
-// Same mapping as extractMappedChannels(), writing straight into compact arrays
-function mappedInkMapsLean(img, steps) {
-  const mapper = new RisoChannelMapper(steps, true);
   img.loadPixels();
   const px = img.pixels;
-  const n = img.width * img.height;
-  const k = Riso.channels.length;
-  const maps = Array.from({ length: k }, () => new Uint8ClampedArray(n));
-  for (let i = 0, p = 0; i < n; i++, p += 4) {
-    const opacities = mapper.findClosestColor([px[p], px[p + 1], px[p + 2]])[1];
-    for (let j = 0; j < k; j++) maps[j][i] = opacities[j] * 255;
+
+  if (state.mode === "auto") {
+    const inks = state.layers.map((L) => inkBySlug(L.ink).rgb);
+    return RisoSep.autoInkMaps(px, n, inks, wanted);
   }
-  return maps;
+
+  const useK = state.layers.some((L) => L.cmyk === 3);
+  return state.layers.map((L, idx) => {
+    if (!wanted(idx)) return null;
+    if (state.mode === "cmyk") return RisoSep.cmykInkMap(px, n, L.cmyk, useK);
+    // rgb: ink wherever the layer's channel is missing
+    const ink = new Uint8ClampedArray(n);
+    for (let i = 0, p = L.rgb; i < n; i++, p += 4) ink[i] = 255 - px[p];
+    return ink;
+  });
 }
 
 // ── SCREENING ───────────────────────────────────
@@ -605,15 +583,15 @@ function inkSuffix(list) {
 // Separate + screen the visible layers at 300 dpi
 async function renderExportLayers() {
   const [PW, PH] = exportSize();
-  const rect = containRect(printableRect(PW, PH), srcImg.width, srcImg.height);
+  const { rect, crop } = placeImage(printableRect(PW, PH), srcImg.width, srcImg.height);
   const pxScale = PW / previewSize()[0]; // scales halftone frequency / dither grain to match preview
   const visible = visibleLayers();
 
   setStatus("procesando… separando a 300 dpi");
   await nextFrame();
-  const src = renderSource(rect.w, rect.h);
+  const src = renderSource(rect.w, rect.h, crop);
   const wantedIdx = new Set(visible.map((v) => v.i));
-  const maps = computeInkMaps(src, true, (i) => wantedIdx.has(i));
+  const maps = computeInkMaps(src, (i) => wantedIdx.has(i));
   src.remove();
 
   const layers = [];
@@ -746,14 +724,69 @@ async function exportPNGLayers() {
       await nextFrame();
       const layer = out.layers[k];
       fillLayerPage(page, out.rect, layer, null);
-      const blob = await new Promise((res) => page.g.elt.toBlob(res, "image/png"));
-      downloadBlob(blob, `riso_${state.format}_${k + 1}-${layer.ink.slug}.png`);
+      downloadBlob(await pagePNG(page), `riso_${state.format}_${k + 1}-${layer.ink.slug}.png`);
       await new Promise((res) => setTimeout(res, 350)); // let the browser start each download
     }
   } finally {
     page.g.remove();
   }
   return `${out.layers.length} png`;
+}
+
+// One 300 dpi PNG of the overprinted inks, as the riso would print them
+async function exportPNGColor() {
+  const out = await renderExportLayers();
+  const page = createPage(out.PW, out.PH);
+  try {
+    setStatus("procesando… composición");
+    await nextFrame();
+    fillCompositePage(page, out.rect, out.layers);
+    setStatus("procesando… guardando png");
+    await nextFrame();
+    const name = `riso_color_${state.format}_${inkSuffix(out.layers)}.png`;
+    downloadBlob(await pagePNG(page), name);
+    return name;
+  } finally {
+    page.g.remove();
+  }
+}
+
+// Page buffer → PNG tagged with its print resolution
+async function pagePNG(page) {
+  const blob = await new Promise((res) => page.g.elt.toBlob(res, "image/png"));
+  return pngWithDPI(blob, EXPORT_DPI);
+}
+
+// Browsers write PNGs without a resolution chunk, so apps open them at 72 dpi
+// (an A3 page would show up as ~1.2 m wide). Insert pHYs right after IHDR.
+async function pngWithDPI(blob, dpi) {
+  const src = new Uint8Array(await blob.arrayBuffer());
+  const ppm = Math.round(dpi / 0.0254); // pixels per metre
+  const chunk = new Uint8Array(21);
+  const dv = new DataView(chunk.buffer);
+  dv.setUint32(0, 9); // data length
+  chunk.set([0x70, 0x48, 0x59, 0x73], 4); // "pHYs"
+  dv.setUint32(8, ppm);
+  dv.setUint32(12, ppm);
+  chunk[16] = 1; // unit: metre
+  dv.setUint32(17, crc32(chunk.subarray(4, 17)));
+  const at = 33; // 8-byte signature + IHDR chunk (4 length + 4 type + 13 data + 4 crc)
+  return new Blob([src.subarray(0, at), chunk, src.subarray(at)], { type: "image/png" });
+}
+
+let crcTable = null;
+function crc32(bytes) {
+  if (!crcTable) {
+    crcTable = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      crcTable[n] = c >>> 0;
+    }
+  }
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = crcTable[(c ^ bytes[i]) & 255] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
 }
 
 function downloadBlob(blob, name) {
@@ -936,10 +969,17 @@ function bindUI() {
     syncUI();
     schedule(STAGE.REBUILD);
   });
+  onPick("toggle-fit", (v) => {
+    if (v === state.fit) return;
+    state.fit = v;
+    syncUI();
+    schedule(STAGE.REBUILD);
+  });
 
   // Export
   $("btn-pdf-color").addEventListener("click", () => runExport(() => exportPDF(true)));
   $("btn-pdf-bw").addEventListener("click", () => runExport(() => exportPDF(false)));
+  $("btn-png-color").addEventListener("click", () => runExport(exportPNGColor));
   $("btn-png-layers").addEventListener("click", () => runExport(exportPNGLayers));
 }
 
@@ -963,16 +1003,17 @@ function editScreen(mutate, delay = 0) {
 
 function syncUI() {
   setActive("toggle-workshop", state.workshop);
-  setActive("group-mode", state.mode, "on");
+  setActive("group-mode", state.mode);
   setActive("toggle-format", state.format);
   setActive("toggle-orientation", state.orientation);
+  setActive("toggle-fit", state.fit);
 
   $("meta-image").textContent = srcInfo
     ? `${srcInfo.name} · ${srcInfo.w} × ${srcInfo.h} px`
     : "sin imagen · también puedes arrastrarla al lienzo";
 
   const modeMeta = {
-    auto: `mezcla las tintas elegidas para aproximar cada color · paso ${mappedSteps()}`,
+    auto: "mezcla las tintas elegidas para aproximar cada color, priorizando el tono",
     cmyk: "cada capa imprime un canal c / m / y / k",
     rgb: "cada capa imprime donde falta su canal r / g / b",
   };
@@ -980,11 +1021,18 @@ function syncUI() {
 
   renderLayers();
   $("btn-add-layer").disabled = state.layers.length >= MAX_LAYERS;
-  $("meta-layers").textContent = `${state.layers.length} de ${MAX_LAYERS} capas · ${currentWorkshop().name}`;
+  $("meta-layers").textContent = `${state.layers.length} de ${MAX_LAYERS} · ${currentWorkshop().name}`;
 
   syncScreenUI();
   syncBusy();
 }
+
+const ICON_EYE =
+  '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>';
+const ICON_EYE_OFF =
+  '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z"/><path d="M2.5 2.5l11 11"/></svg>';
+const ICON_REMOVE =
+  '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>';
 
 function renderLayers() {
   const inks = currentWorkshop().inks;
@@ -1002,15 +1050,13 @@ function renderLayers() {
             <span class="layer-num">${i + 1}</span>
             <span class="swatch" style="background:${ink.hex}" title="${ink.hex}"></span>
             <select class="ink-select" aria-label="tinta de la capa ${i + 1}">${options}</select>
-          </div>
-          <div class="layer-row">
-            <button class="btn btn-inline${L.visible ? " on" : ""}" type="button" data-act="visible">${L.visible ? "[ ver ]" : "[ oculta ]"}</button>
-            <button class="btn btn-inline" type="button" data-act="remove" title="quitar capa"${single ? " disabled" : ""}>[ – ]</button>
+            <button class="icon-btn" type="button" data-act="visible" title="${L.visible ? "ocultar capa" : "mostrar capa"}" aria-pressed="${L.visible}">${L.visible ? ICON_EYE : ICON_EYE_OFF}</button>
+            <button class="icon-btn" type="button" data-act="remove" title="quitar capa"${single ? " disabled" : ""}>${ICON_REMOVE}</button>
           </div>
           ${channelToggleHTML(L)}
           <div class="slider-row">
             <div class="slider-head">
-              <span class="field-label">densidad</span>
+              <span class="field-label">Densidad</span>
               <span class="slider-value">${pct}%</span>
             </div>
             <input type="range" min="0" max="100" step="1" value="${pct}" data-act="density" aria-label="densidad de la capa ${i + 1}" />
@@ -1027,10 +1073,10 @@ function channelToggleHTML(L) {
   const buttons = names
     .map(
       (c, k) =>
-        `${k ? '<span class="toggle-sep">|</span>' : ""}<button class="toggle-btn${k === current ? " active" : ""}" type="button" data-act="channel" data-value="${k}">${c}</button>`,
+        `<button class="seg-btn${k === current ? " active" : ""}" type="button" data-act="channel" data-value="${k}">${c.toUpperCase()}</button>`,
     )
     .join("");
-  return `<div class="layer-channel"><span class="field-label">canal</span><div class="format-toggle">${buttons}</div></div>`;
+  return `<div class="layer-channel"><span class="field-label">Canal</span><div class="seg">${buttons}</div></div>`;
 }
 
 function syncScreenUI() {
@@ -1039,13 +1085,12 @@ function syncScreenUI() {
   const cfg = L ? screenOf(L) : state.screen;
 
   // Scope toggle: global | 1 | 2* ...  (* = layer has its own screen)
-  const opts = [["global", "global"]].concat(
+  const opts = [["global", "Global"]].concat(
     state.layers.map((x, i) => [String(x.uid), `${i + 1}${x.screen ? "*" : ""}`]),
   );
   $("toggle-scope").innerHTML = opts
     .map(
-      ([v, label], k) =>
-        `${k ? '<span class="toggle-sep">|</span>' : ""}<button class="toggle-btn" type="button" data-value="${v}">${label}</button>`,
+      ([v, label]) => `<button class="seg-btn" type="button" data-value="${v}">${label}</button>`,
     )
     .join("");
   setActive("toggle-scope", state.scope);
@@ -1061,7 +1106,7 @@ function syncScreenUI() {
     $("meta-scope").textContent = "aplica a todas las capas sin trama propia (*)";
   }
 
-  setActive("group-style", cfg.style, "on");
+  setActive("group-style", cfg.style);
   $("panel-halftone").hidden = cfg.style !== "halftone";
   $("panel-dither").hidden = cfg.style !== "dither";
 
@@ -1091,7 +1136,7 @@ function syncScreenUI() {
 
 function syncBusy() {
   document.querySelector(".sidebar").classList.toggle("busy", busy);
-  ["btn-pdf-color", "btn-pdf-bw", "btn-png-layers"].forEach((id) => {
-    $(id).disabled = busy || !srcImg;
+  document.querySelectorAll(".btn-export").forEach((b) => {
+    b.disabled = busy || !srcImg;
   });
 }

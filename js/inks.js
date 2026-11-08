@@ -32,6 +32,18 @@ const WORKSHOPS = {
       { slug: "naranja-melon", name: "Naranja (Melón)", hex: "#FFAE3B" },
     ],
   },
+  lab360: {
+    name: "lab360 udp",
+    // Provisional: inferred from Lab360 prints seen on Instagram, not from an
+    // official drum list. Blue vs Medium Blue unconfirmed; red may be offset.
+    defaults: ["blue", "fluorescent-pink", "yellow", "bright-red"],
+    inks: [
+      { slug: "blue", name: "Blue", hex: "#0078BF" },
+      { slug: "yellow", name: "Yellow", hex: "#FFE800" },
+      { slug: "fluorescent-pink", name: "Fluorescent Pink", hex: "#FF48B0" },
+      { slug: "bright-red", name: "Bright Red", hex: "#F15060" },
+    ],
+  },
 };
 
 // Precompute [r, g, b] arrays from hex so sketch.js can pass them to new Riso()

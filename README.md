@@ -2,18 +2,31 @@
 
 Herramienta web estática para separar una imagen (JPG, PNG o WebP) en capas de tinta para imprimir en risografía.
 
-- **Talleres:** paletas de Aoi Club y Rata Estudio, con sus valores exactos de color.
-- **Separación:** automática (mezcla las tintas elegidas para aproximar cada color), CMYK o RGB. Admite de 1 a 4 capas.
+- **Talleres:** paletas de Aoi Club, Rata Estudio y Lab360 UDP (provisoria), con sus valores exactos de color.
+- **Separación:** automática (mezcla las tintas elegidas para aproximar cada color, priorizando el tono), CMYK o RGB. Admite de 1 a 4 capas.
 - **Trama:** tono continuo, halftone (circle, line, square, ellipse, cross) o dither (atkinson, floydsteinberg, bayer, none). Puede ser global o propia de cada capa. Cada capa tiene su propio ángulo para evitar el moiré.
 - **Preview:** las capas se sobreimprimen con multiply sobre papel blanco. La línea gris marca el área imprimible y no se exporta.
-- **Exportación a 300 dpi (A4 o A3, vertical u horizontal):**
+- **Página:** A4 o A3, vertical u horizontal. *Contener* muestra la imagen completa; *rellenar* cubre toda el área imprimible y recorta lo que sobra.
+- **Exportación a 300 dpi:**
   - `PDF color`: la primera página es la composición y luego viene una página por capa en el color de su tinta.
   - `PDF b/n`: una página por capa, donde negro = 100 % de tinta. Son los másters para la riso.
+  - `PNG color`: un PNG con la composición, como saldría impresa.
   - `PNG capas`: un PNG en escala de grises por capa.
 
   Solo se exportan las capas visibles. La densidad simula la intensidad de la tinta en el preview y en el PDF color. Los másters b/n y PNG no la aplican: esa intensidad se regula en la máquina.
 
-Usa [p5.js](https://p5js.org) 1.9, [p5.riso](https://github.com/antiboredom/p5.riso) (copia local en `libs/`) y [jsPDF](https://github.com/parallax/jsPDF). No necesita build ni backend.
+Usa [p5.js](https://p5js.org) 1.9, [p5.riso](https://github.com/antiboredom/p5.riso) (copia local en `js/vendor/`) y [jsPDF](https://github.com/parallax/jsPDF). No necesita build ni backend.
+
+## Estructura
+
+```
+index.html
+css/style.css        interfaz
+js/inks.js           tintas de cada taller
+js/separation.js     color → cobertura de tinta (modos auto y cmyk)
+js/sketch.js         preview, tramas, exportación e interfaz
+js/vendor/p5.riso.js
+```
 
 ## Uso local
 
