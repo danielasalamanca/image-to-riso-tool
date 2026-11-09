@@ -2,7 +2,7 @@
 
 Herramienta web estática para separar una imagen (JPG, PNG o WebP) en capas de tinta para imprimir en risografía.
 
-- **Talleres:** paletas de Aoi Club, Rata Estudio y Lab360 UDP (provisoria), con sus valores exactos de color.
+- **Talleres:** paletas de Aoi Club, Rata Estudio y Lab360 UDP, con sus valores exactos de color.
 - **Separación:** automática (mezcla las tintas elegidas para aproximar cada color, priorizando el tono), CMYK o RGB. Admite de 1 a 4 capas.
 - **Trama:** tono continuo, halftone (circle, line, square, ellipse, cross) o dither (atkinson, floydsteinberg, bayer, none). Puede ser global o propia de cada capa. Cada capa tiene su propio ángulo para evitar el moiré.
 - **Preview:** las capas se sobreimprimen con multiply sobre papel blanco. La línea gris marca el área imprimible y no se exporta.
