@@ -26,11 +26,11 @@
         <div class="sidebar-body">
           <!-- IMAGE -->
           <section class="section">
-            <button class="btn btn-primary" id="btn-load" type="button">Cargar imagen</button>
+            <button class="btn btn-primary" id="btn-load" type="button">Cargar imagen o PDF</button>
             <input
               type="file"
               id="file-input"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/jpeg,image/png,image/webp,application/pdf,.pdf"
               hidden
             />
             <p class="meta" id="meta-image">sin imagen · también puedes arrastrarla al lienzo</p>
@@ -160,10 +160,10 @@
           <h2 class="label label-export">Exportar</h2>
           <div class="export-grid">
             <button class="btn btn-primary btn-export" id="btn-pdf-color" type="button">PDF color</button>
-            <button class="btn btn-export" id="btn-pdf-bw" type="button">PDF b/n</button>
-            <button class="btn btn-export" id="btn-pdf-layers-color" type="button">PDF capas color</button>
             <button class="btn btn-export" id="btn-png-color" type="button">PNG color</button>
+            <button class="btn btn-export" id="btn-pdf-bw" type="button">PDF b/n</button>
             <button class="btn btn-export" id="btn-png-layers" type="button">PNG capas b/n</button>
+            <button class="btn btn-export" id="btn-pdf-layers-color" type="button">PDF capas color</button>
             <button class="btn btn-export" id="btn-png-layers-color" type="button">PNG capas color</button>
           </div>
           <p class="meta status" id="meta-status">carga una imagen para empezar</p>
@@ -181,6 +181,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="js/vendor/p5.riso.js"></script>
     <script src="js/inks.js"></script>

@@ -8,7 +8,8 @@
 // ── CONSTANTS ───────────────────────────────────
 
 const PAGE_MM = { A4: [210, 297], A3: [297, 420] }; // portrait
-const PRINTABLE_MM = { A4: [190, 277], A3: [280, 400] }; // portrait, centred
+const MARGIN_MM = 6; // 0.6 cm on every side
+const PRINTABLE_MM = { A4: [210 - 2 * MARGIN_MM, 297 - 2 * MARGIN_MM], A3: [297 - 2 * MARGIN_MM, 420 - 2 * MARGIN_MM] }; // portrait, centred
 const EXPORT_PX = { A4: [2480, 3508], A3: [3508, 4961] }; // 300 dpi, portrait
 const EXPORT_DPI = 300;
 
@@ -597,20 +598,58 @@ function nextFrame() {
 
 // ── IMAGE LOADING ───────────────────────────────
 
-function loadFile(file) {
+// First page of a PDF rasterised to a PNG blob (~300 dpi, long side capped)
+async function pdfToBlob(file) {
+  if (!window.pdfjsLib) throw new Error("no se pudo cargar el lector de PDF");
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+  const page = await pdf.getPage(1);
+  const base = page.getViewport({ scale: 1 });
+  const scale = Math.min(300 / 72, 5000 / Math.max(base.width, base.height));
+  const vp = page.getViewport({ scale });
+  const cnv = document.createElement("canvas");
+  cnv.width = Math.round(vp.width);
+  cnv.height = Math.round(vp.height);
+  const ctx = cnv.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, cnv.width, cnv.height);
+  await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  const blob = await new Promise((res) => cnv.toBlob(res, "image/png"));
+  const pages = pdf.numPages;
+  pdf.destroy();
+  return { blob, pages };
+}
+
+async function loadFile(file) {
   if (!file || busy) return;
-  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
-    setStatus("formato no soportado: usa JPG, PNG o WebP");
+  const isPDF = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+  if (!isPDF && !/^image\/(jpeg|png|webp)$/.test(file.type)) {
+    setStatus("formato no soportado: usa JPG, PNG, WebP o PDF");
     return;
   }
   setStatus("cargando…");
-  const url = URL.createObjectURL(file);
+  let blob = file;
+  let note = "";
+  if (isPDF) {
+    try {
+      setStatus("leyendo PDF…");
+      const r = await pdfToBlob(file);
+      blob = r.blob;
+      if (r.pages > 1) note = ` (página 1 de ${r.pages})`;
+    } catch (err) {
+      console.error(err);
+      setStatus("no se pudo leer el PDF");
+      return;
+    }
+  }
+  const url = URL.createObjectURL(blob);
   loadImage(
     url,
     (img) => {
       URL.revokeObjectURL(url);
       srcImg = img;
-      srcInfo = { name: file.name, w: img.width, h: img.height };
+      srcInfo = { name: file.name + note, w: img.width, h: img.height };
       syncUI();
       schedule(STAGE.REBUILD);
     },
