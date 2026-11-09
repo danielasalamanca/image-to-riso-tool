@@ -42,6 +42,10 @@ const WORKSHOPS = {
       { slug: "yellow", name: "Yellow", hex: "#FFE800" },
       { slug: "fluorescent-pink", name: "Fluorescent Pink", hex: "#FF48B0" },
       { slug: "bright-red", name: "Bright Red", hex: "#F15060" },
+      { slug: "black", name: "Black", hex: "#000000" },
+      { slug: "teal-u", name: "Teal U", hex: "#008C95" },
+      { slug: "purple", name: "Purple", hex: "#614A86" },
+      { slug: "green", name: "Verde", hex: "#00A95C" },
     ],
   },
 };

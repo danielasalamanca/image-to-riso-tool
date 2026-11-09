@@ -13,6 +13,7 @@ const EXPORT_PX = { A4: [2480, 3508], A3: [3508, 4961] }; // 300 dpi, portrait
 const EXPORT_DPI = 300;
 
 const PREVIEW_LONG = 940; // preview canvas long side (keeps the image area under ~900 px)
+let previewQuality = 1; // canvas resolution multiplier, raised while zoomed in (see zoom.js)
 const MAX_PREVIEW_IMG = 900; // max long side of the preview working image
 const MAX_LAYERS = 4;
 const DEFAULT_ANGLES = [15, 75, 0, 45];
@@ -69,7 +70,7 @@ HTMLCanvasElement.prototype.getContext = function (type, options) {
 // ── P5 ──────────────────────────────────────────
 
 function setup() {
-  const [w, h] = previewSize();
+  const [w, h] = canvasSize();
   const cnv = createCanvas(w, h);
   pixelDensity(1);
   cnv.parent("canvas-wrapper");
@@ -88,6 +89,8 @@ function setup() {
 
 function draw() {
   background(255);
+  // Displayed width stays the base preview width whatever the canvas resolution
+  drawingContext.canvas.style.setProperty("--cw", width / previewQuality + "px");
 
   if (srcImg && work) {
     // Equivalent to drawRiso(), but skipping hidden layers
@@ -114,7 +117,7 @@ function drawEmptyState() {
   text("image to riso", width / 2, height / 2 - 16);
   fill("#737373");
   textStyle(NORMAL);
-  textSize(13);
+  textSize(13 * previewQuality);
   text("arrastra una imagen aquí o usa Cargar imagen", width / 2, height / 2 + 20);
 }
 
@@ -123,7 +126,7 @@ function drawPrintableGuide() {
   const r = printableRect(width, height);
   noFill();
   stroke(GUIDE_COLOR);
-  strokeWeight(1);
+  strokeWeight(previewQuality);
   rect(Math.round(r.x) + 0.5, Math.round(r.y) + 0.5, Math.round(r.w) - 1, Math.round(r.h) - 1);
 }
 
@@ -142,6 +145,20 @@ function previewSize() {
   const k = PREVIEW_LONG / Math.max(w, h);
   return [Math.round(w * k), Math.round(h * k)];
 }
+
+// Actual canvas size: the preview size times the zoom quality multiplier
+function canvasSize() {
+  const [w, h] = previewSize();
+  return [w * previewQuality, h * previewQuality];
+}
+
+// Re-render the preview at a higher resolution (zoom.js calls this once zoom settles)
+window.setPreviewQuality = function (q) {
+  if (q === previewQuality) return;
+  previewQuality = q;
+  if (srcImg) schedule(STAGE.REBUILD);
+  else resizeCanvas(...canvasSize());
+};
 
 function exportSize() {
   return orient(EXPORT_PX[state.format]);
@@ -275,13 +292,13 @@ function renderSource(w, h, crop) {
 
 function buildWorkImage() {
   const { rect, crop } = placeImage(printableRect(width, height), srcImg.width, srcImg.height);
-  const s = Math.min(1, MAX_PREVIEW_IMG / Math.max(rect.w, rect.h));
+  const s = Math.min(1, (MAX_PREVIEW_IMG * previewQuality) / Math.max(rect.w, rect.h));
   const ww = Math.max(1, Math.round(rect.w * s));
   const wh = Math.max(1, Math.round(rect.h * s));
   const g = renderSource(ww, wh, crop);
   const img = g.get();
   g.remove();
-  work = { img, rect, pxScale: ww / rect.w };
+  work = { img, rect, pxScale: ww / (rect.w / previewQuality) }; // working px per base-preview px
 }
 
 // Ink coverage per layer (Uint8ClampedArray, 255 = full ink), see separation.js.
@@ -313,7 +330,7 @@ function computeInkMaps(img, wanted = () => true) {
 // pxScale = working pixels per preview pixel (≈1 in preview, ~3.7–5.3 at export).
 function screenLayer(ink, w, h, cfg, angle, pxScale) {
   if (cfg.style === "halftone") {
-    return renderHalftone(ink, w, h, cfg.shape, Math.max(1, cfg.frequency * pxScale), angle);
+    return renderHalftone(ink, w, h, cfg.shape, Math.max(0.5, cfg.frequency * pxScale), angle);
   }
   if (cfg.style === "dither") {
     return renderDither(ink, w, h, cfg.ditherType, cfg.threshold, pxScale);
@@ -481,7 +498,7 @@ function grayToImage(gray, w, h) {
 
 function runPipeline(stage) {
   if (stage >= STAGE.REBUILD) {
-    const [w, h] = previewSize();
+    const [w, h] = canvasSize();
     if (w !== width || h !== height) resizeCanvas(w, h);
     rebuildRisoLayers();
     if (srcImg) {
@@ -943,7 +960,7 @@ function bindUI() {
   onPick("toggle-shape", (v) => editScreen((s) => (s.shape = v)));
   onPick("toggle-dither", (v) => editScreen((s) => (s.ditherType = v)));
   $("slider-frequency").addEventListener("input", (e) =>
-    editScreen((s) => (s.frequency = parseInt(e.target.value, 10)), DEBOUNCE_MS),
+    editScreen((s) => (s.frequency = parseFloat(e.target.value)), DEBOUNCE_MS),
   );
   $("slider-threshold").addEventListener("input", (e) =>
     editScreen((s) => (s.threshold = parseInt(e.target.value, 10)), DEBOUNCE_MS),

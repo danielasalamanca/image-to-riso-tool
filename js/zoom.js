@@ -1,0 +1,126 @@
+/*
+  zoom.js — preview zoom & pan. Purely visual (CSS transform on the p5 canvas):
+  it never touches the pipeline or the exports.
+  Wheel / pinch = zoom at cursor · drag = pan · double click = fit · +/-/0 keys.
+*/
+(function () {
+  const MIN = 1;
+  const MAX = 16;
+  const area = document.getElementById("canvas-area");
+  const wrapper = document.getElementById("canvas-wrapper");
+  const label = document.getElementById("zoom-level");
+  let z = 1;
+  let quality = 1; // preview resolution multiplier currently rendered
+  let qualityTimer = null;
+  let tx = 0;
+  let ty = 0;
+
+  const canvas = () => wrapper.querySelector("canvas");
+
+  function apply() {
+    const c = canvas();
+    if (!c) return;
+    if (z === 1) tx = ty = 0;
+    c.style.transformOrigin = "50% 50%";
+    c.style.transform = z === 1 ? "" : `translate(${tx}px, ${ty}px) scale(${z})`;
+    area.classList.toggle("zoomed", z > 1);
+    if (label) label.textContent = `${Math.round(z * 100)}%`;
+  }
+
+  // Once zoom settles, re-render the preview with more pixels so the screens
+  // are sharp instead of an enlarged low-res bitmap (1x, 2x or 3x ≈ export size)
+  function scheduleQuality() {
+    clearTimeout(qualityTimer);
+    qualityTimer = setTimeout(() => {
+      const q = Math.min(3, Math.ceil(z - 0.01));
+      if (q === quality || !window.setPreviewQuality) return;
+      quality = q;
+      window.setPreviewQuality(q);
+      apply();
+    }, 350);
+  }
+
+  // Keep the canvas from being panned completely out of view
+  function clampPan() {
+    const c = canvas();
+    if (!c) return;
+    const r = wrapper.getBoundingClientRect();
+    const w = c.offsetWidth;
+    const h = c.offsetHeight;
+    const mx = Math.max(0, (w * z - r.width) / 2 + 80);
+    const my = Math.max(0, (h * z - r.height) / 2 + 80);
+    tx = Math.min(mx, Math.max(-mx, tx));
+    ty = Math.min(my, Math.max(-my, ty));
+  }
+
+  // Zoom keeping the point (cx, cy), in client coordinates, fixed on screen
+  function zoomTo(next, cx, cy) {
+    next = Math.min(MAX, Math.max(MIN, next));
+    const r = wrapper.getBoundingClientRect();
+    const px = (cx ?? r.left + r.width / 2) - (r.left + r.width / 2);
+    const py = (cy ?? r.top + r.height / 2) - (r.top + r.height / 2);
+    const k = next / z;
+    tx = px - (px - tx) * k;
+    ty = py - (py - ty) * k;
+    z = next;
+    clampPan();
+    apply();
+    scheduleQuality();
+  }
+
+  area.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      // Trackpad pinch arrives as ctrl+wheel with small deltas
+      const f = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015));
+      zoomTo(z * f, e.clientX, e.clientY);
+    },
+    { passive: false },
+  );
+
+  let drag = null;
+  area.addEventListener("pointerdown", (e) => {
+    if (z <= 1 || e.button !== 0 || e.target.closest(".zoom-controls")) return;
+    drag = { x: e.clientX, y: e.clientY, tx, ty };
+    area.setPointerCapture(e.pointerId);
+    area.classList.add("panning");
+  });
+  area.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    tx = drag.tx + e.clientX - drag.x;
+    ty = drag.ty + e.clientY - drag.y;
+    clampPan();
+    apply();
+  });
+  const endDrag = () => {
+    drag = null;
+    area.classList.remove("panning");
+  };
+  area.addEventListener("pointerup", endDrag);
+  area.addEventListener("pointercancel", endDrag);
+  area.addEventListener("dblclick", (e) => {
+    if (e.target.closest(".zoom-controls")) return;
+    z === 1 ? zoomTo(4, e.clientX, e.clientY) : zoomTo(1);
+  });
+
+  document.getElementById("zoom-in").addEventListener("click", () => zoomTo(z * 1.5));
+  document.getElementById("zoom-out").addEventListener("click", () => zoomTo(z / 1.5));
+  document.getElementById("zoom-fit").addEventListener("click", () => zoomTo(1));
+
+  window.addEventListener("keydown", (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    if (e.key === "+" || e.key === "=") zoomTo(z * 1.5);
+    else if (e.key === "-") zoomTo(z / 1.5);
+    else if (e.key === "0") zoomTo(1);
+  });
+
+  // The canvas element can be resized (page format change): keep pan in range
+  window.addEventListener("resize", () => {
+    clampPan();
+    apply();
+  });
+  new MutationObserver(apply).observe(wrapper, { childList: true });
+  apply();
+})();
