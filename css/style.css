@@ -497,7 +497,11 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   min-height: 0;
 }
 
-/* p5 writes inline width/height: override so the canvas scales to fit */
+/* p5 writes inline width/height: override so the canvas scales to fit.
+   width and height must both stay auto: with max-width/max-height the browser
+   then shrinks the canvas keeping its aspect ratio. --cw (set by sketch.js)
+   caps the display width at the base preview size when zoom renders the
+   canvas at 2x/3x resolution. A fixed width here squashes the page. */
 .canvas-wrapper canvas {
   display: block;
   flex: none;

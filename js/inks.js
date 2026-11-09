@@ -34,18 +34,17 @@ const WORKSHOPS = {
   },
   lab360: {
     name: "lab360 udp",
-    // Provisional: inferred from Lab360 prints seen on Instagram, not from an
-    // official drum list. Blue vs Medium Blue unconfirmed; red may be offset.
-    defaults: ["blue", "fluorescent-pink", "yellow", "bright-red"],
+    // Official Lab360 drum list
+    defaults: ["azul", "rosa-fluor", "amarillo", "negro"],
     inks: [
-      { slug: "blue", name: "Blue", hex: "#0078BF" },
-      { slug: "yellow", name: "Yellow", hex: "#FFE800" },
-      { slug: "fluorescent-pink", name: "Fluorescent Pink", hex: "#FF48B0" },
-      { slug: "bright-red", name: "Bright Red", hex: "#F15060" },
-      { slug: "black", name: "Black", hex: "#000000" },
-      { slug: "teal-u", name: "Teal U", hex: "#008C95" },
-      { slug: "purple", name: "Purple", hex: "#614A86" },
-      { slug: "green", name: "Verde", hex: "#00A95C" },
+      { slug: "verde", name: "Verde", hex: "#00A95C" },
+      { slug: "violeta", name: "Violeta", hex: "#9D7AD2" },
+      { slug: "negro", name: "Negro", hex: "#000000" },
+      { slug: "azul", name: "Azul", hex: "#0078BF" },
+      { slug: "rosa-fluor", name: "Rosa flúor", hex: "#FF48B0" },
+      { slug: "rojo", name: "Rojo", hex: "#FF665E" },
+      { slug: "teal", name: "Teal", hex: "#00838A" },
+      { slug: "amarillo", name: "Amarillo", hex: "#FFE800" },
     ],
   },
 };
