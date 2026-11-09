@@ -90,7 +90,7 @@ function setup() {
 function draw() {
   background(255);
   // Displayed width stays the base preview width whatever the canvas resolution
-  drawingContext.canvas.style.setProperty("--cw", width / previewQuality + "px");
+  fitCanvas();
 
   if (srcImg && work) {
     // Equivalent to drawRiso(), but skipping hidden layers
@@ -106,6 +106,19 @@ function draw() {
 
   drawPrintableGuide();
 }
+
+// Display size: the base preview size shrunk (never enlarged) to fit the area,
+// with explicit width and height so the aspect ratio always holds.
+function fitCanvas() {
+  const c = drawingContext.canvas;
+  const box = c.parentElement.getBoundingClientRect();
+  const bw = width / previewQuality;
+  const bh = height / previewQuality;
+  const k = Math.min(1, box.width / bw, box.height / bh);
+  c.style.setProperty("width", Math.floor(bw * k) + "px", "important");
+  c.style.setProperty("height", Math.floor(bh * k) + "px", "important");
+}
+window.addEventListener("resize", () => typeof redraw === "function" && redraw());
 
 function drawEmptyState() {
   noStroke();
@@ -292,13 +305,26 @@ function renderSource(w, h, crop) {
 
 function buildWorkImage() {
   const { rect, crop } = placeImage(printableRect(width, height), srcImg.width, srcImg.height);
-  const s = Math.min(1, (MAX_PREVIEW_IMG * previewQuality) / Math.max(rect.w, rect.h));
+  // Separation always runs at base preview resolution (cheap); only the
+  // screens are drawn at the higher zoom resolution (ow x oh).
+  const base = Math.max(rect.w, rect.h) / previewQuality;
+  const s = Math.min(1, MAX_PREVIEW_IMG / base) / previewQuality;
   const ww = Math.max(1, Math.round(rect.w * s));
   const wh = Math.max(1, Math.round(rect.h * s));
+  const so = Math.min(1, (MAX_PREVIEW_IMG * previewQuality) / Math.max(rect.w, rect.h));
+  const ow = Math.max(1, Math.round(rect.w * so));
+  const oh = Math.max(1, Math.round(rect.h * so));
   const g = renderSource(ww, wh, crop);
   const img = g.get();
   g.remove();
-  work = { img, rect, pxScale: ww / (rect.w / previewQuality) }; // working px per base-preview px
+  work = {
+    img,
+    rect,
+    pxScale: ww / (rect.w / previewQuality), // ink-map px per base-preview px
+    ow,
+    oh,
+    outScale: ow / (rect.w / previewQuality), // screen px per base-preview px
+  };
 }
 
 // Ink coverage per layer (Uint8ClampedArray, 255 = full ink), see separation.js.
@@ -328,9 +354,10 @@ function computeInkMaps(img, wanted = () => true) {
 
 // ink → greyscale (Uint8ClampedArray, 0 = full ink, 255 = paper).
 // pxScale = working pixels per preview pixel (≈1 in preview, ~3.7–5.3 at export).
-function screenLayer(ink, w, h, cfg, angle, pxScale) {
+// Output is w x h; the ink map may be smaller (iw x ih) — halftone only.
+function screenLayer(ink, w, h, cfg, angle, pxScale, iw = w, ih = h) {
   if (cfg.style === "halftone") {
-    return renderHalftone(ink, w, h, cfg.shape, Math.max(0.5, cfg.frequency * pxScale), angle);
+    return renderHalftone(ink, iw, ih, w, h, cfg.shape, Math.max(0.5, cfg.frequency * pxScale), angle);
   }
   if (cfg.style === "dither") {
     return renderDither(ink, w, h, cfg.ditherType, cfg.threshold, pxScale);
@@ -366,12 +393,12 @@ function renderDither(ink, w, h, type, threshold, grain) {
 // Rotated-grid halftone drawn with canvas paths. Same shapes as p5.riso's
 // halftoneImage(), but sized by area (dot area = ink coverage) and without the
 // 2x-sized intermediate buffers, which matters at 300 dpi.
-function renderHalftone(ink, w, h, shape, cell, angleDeg) {
+function renderHalftone(ink, iw, ih, w, h, shape, cell, angleDeg) {
   // Average coverage over ~half a cell so dots don't depend on single pixels
   const k = Math.max(1, cell / 2);
-  const sw = Math.max(1, Math.round(w / k));
-  const sh = Math.max(1, Math.round(h / k));
-  const small = downsample(ink, w, h, sw, sh);
+  const sw = Math.max(1, Math.min(iw, Math.round(w / k)));
+  const sh = Math.max(1, Math.min(ih, Math.round(h / k)));
+  const small = downsample(ink, iw, ih, sw, sh);
 
   const g = createGraphics(w, h);
   const ctx = g.drawingContext;
@@ -509,14 +536,21 @@ function runPipeline(stage) {
 
   if (srcImg && work) {
     if (stage >= STAGE.SCREEN) {
-      const { img, pxScale } = work;
-      screenedImgs = state.layers.map((L, i) =>
-        grayToImage(
-          screenLayer(inkMaps[i], img.width, img.height, screenOf(L), L.angle, pxScale),
-          img.width,
-          img.height,
-        ),
-      );
+      const { img, pxScale, ow, oh, outScale } = work;
+      screenedImgs = state.layers.map((L, i) => {
+        const cfg = screenOf(L);
+        if (cfg.style === "halftone") {
+          return grayToImage(
+            screenLayer(inkMaps[i], ow, oh, cfg, L.angle, outScale, img.width, img.height),
+            ow,
+            oh,
+          );
+        }
+        const gray = screenLayer(inkMaps[i], img.width, img.height, cfg, L.angle, pxScale);
+        return cfg.style === "dither"
+          ? grayToImage(upsampleNearest(gray, img.width, img.height, ow, oh), ow, oh)
+          : grayToImage(gray, img.width, img.height);
+      });
     }
     if (stage >= STAGE.PAINT) {
       const r = work.rect;
@@ -703,13 +737,14 @@ function addPageImage(doc, page, first) {
   doc.addImage(page.g.elt.toDataURL("image/png"), "PNG", 0, 0, mw, mh, undefined, "FAST");
 }
 
-async function exportPDF(color) {
+// color: layers in ink colour (else greyscale masters). composite: add the overprint page first.
+async function exportPDF(color, composite = color) {
   const out = await renderExportLayers();
   const page = createPage(out.PW, out.PH);
   const doc = newPDF();
   try {
     let first = true;
-    if (color) {
+    if (composite) {
       setStatus("procesando… composición");
       await nextFrame();
       fillCompositePage(page, out.rect, out.layers);
@@ -727,12 +762,12 @@ async function exportPDF(color) {
   } finally {
     page.g.remove();
   }
-  const name = `riso_${color ? "color" : "bn"}_${state.format}_${inkSuffix(out.layers)}.pdf`;
+  const name = `riso_${color ? (composite ? "color" : "capas_color") : "bn"}_${state.format}_${inkSuffix(out.layers)}.pdf`;
   doc.save(name);
   return name;
 }
 
-async function exportPNGLayers() {
+async function exportPNGLayers(color = false) {
   const out = await renderExportLayers();
   const page = createPage(out.PW, out.PH);
   try {
@@ -740,8 +775,11 @@ async function exportPNGLayers() {
       setStatus(`procesando… png capa ${k + 1}/${out.layers.length}`);
       await nextFrame();
       const layer = out.layers[k];
-      fillLayerPage(page, out.rect, layer, null);
-      downloadBlob(await pagePNG(page), `riso_${state.format}_${k + 1}-${layer.ink.slug}.png`);
+      fillLayerPage(page, out.rect, layer, color ? layer.ink.rgb : null);
+      downloadBlob(
+        await pagePNG(page),
+        `riso_${color ? "color_" : ""}${state.format}_${k + 1}-${layer.ink.slug}.png`,
+      );
       await new Promise((res) => setTimeout(res, 350)); // let the browser start each download
     }
   } finally {
@@ -995,9 +1033,11 @@ function bindUI() {
 
   // Export
   $("btn-pdf-color").addEventListener("click", () => runExport(() => exportPDF(true)));
+  $("btn-pdf-layers-color").addEventListener("click", () => runExport(() => exportPDF(true, false)));
   $("btn-pdf-bw").addEventListener("click", () => runExport(() => exportPDF(false)));
   $("btn-png-color").addEventListener("click", () => runExport(exportPNGColor));
-  $("btn-png-layers").addEventListener("click", () => runExport(exportPNGLayers));
+  $("btn-png-layers").addEventListener("click", () => runExport(() => exportPNGLayers(false)));
+  $("btn-png-layers-color").addEventListener("click", () => runExport(() => exportPNGLayers(true)));
 }
 
 function layerFromEvent(e) {
