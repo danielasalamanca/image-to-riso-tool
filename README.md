@@ -21,10 +21,13 @@ Usa [p5.js](https://p5js.org) 1.9, [p5.riso](https://github.com/antiboredom/p5.r
 
 ```
 index.html
+favicon.svg          favicon estático (brand.js lo anima)
 css/style.css        interfaz
+js/brand.js          favicon animado
 js/inks.js           tintas de cada taller
 js/separation.js     color → cobertura de tinta (modos auto y cmyk)
 js/sketch.js         preview, tramas, exportación e interfaz
+js/zoom.js           zoom y desplazamiento de la preview
 js/vendor/p5.riso.js
 ```
 

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- image to riso: Fluorescent Pink and Medium Blue overprinted (multiply) -->
+  <defs>
+    <clipPath id="pink"><circle cx="22" cy="32" r="20" /></clipPath>
+  </defs>
+  <circle cx="22" cy="32" r="20" fill="#FF48B0" />
+  <circle cx="35" cy="32" r="20" fill="#3255A4" />
+  <circle cx="35" cy="32" r="20" fill="#321871" clip-path="url(#pink)" />
+</svg>

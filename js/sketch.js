@@ -17,11 +17,12 @@ const PREVIEW_LONG = 940; // preview canvas long side (keeps the image area unde
 let previewQuality = 1; // canvas resolution multiplier, raised while zoomed in (see zoom.js)
 const MAX_PREVIEW_IMG = 900; // max long side of the preview working image
 const MAX_LAYERS = 4;
+const HALFTONE_THRESHOLD = 127; // p5.riso halftoneImage() "intensity": binarises the dots
 const DEFAULT_ANGLES = [15, 75, 0, 45];
 const CMYK_CHANNELS = ["c", "m", "y", "k"];
 const RGB_CHANNELS = ["r", "g", "b"];
 const DEBOUNCE_MS = 200;
-const GUIDE_COLOR = "#D4D4D4";
+const GUIDE_COLOR = "#BFC9DD"; // Medium Blue at 30 % on paper
 
 // Pipeline stages, cheapest first. Running a stage also runs every cheaper one.
 const STAGE = { COMPOSITE: 0, PAINT: 1, SCREEN: 2, REBUILD: 3 };
@@ -83,6 +84,7 @@ function setup() {
 
   bindUI();
   syncUI();
+  undoHistory.current = snapshot(); // baseline for undo
 
   // Redraw the empty state once web fonts are available
   if (document.fonts) document.fonts.ready.then(() => redraw());
@@ -121,18 +123,30 @@ function fitCanvas() {
 }
 window.addEventListener("resize", () => typeof redraw === "function" && redraw());
 
+// Logo mark (pink and blue overprinted) + how to start
 function drawEmptyState() {
+  const q = previewQuality;
+  const cx = width / 2;
+  const cy = height / 2;
+  const r = 34 * q;
   noStroke();
+  fill("#FF48B0");
+  circle(cx - 12 * q, cy - 56 * q, r * 2);
+  blendMode(MULTIPLY);
+  fill("#3255A4");
+  circle(cx + 12 * q, cy - 56 * q, r * 2);
+  blendMode(BLEND);
+
   textAlign(CENTER, CENTER);
-  textFont("Inter");
-  fill("#111111");
+  textFont("Space Grotesk");
+  fill("#3255A4");
   textStyle(BOLD);
-  textSize(Math.round(width * 0.05));
-  text("image to riso", width / 2, height / 2 - 16);
-  fill("#737373");
+  textSize(Math.round(22 * q));
+  text("Arrastra una imagen o un PDF", cx, cy + 18 * q);
   textStyle(NORMAL);
-  textSize(13 * previewQuality);
-  text("arrastra una imagen aquí o usa Cargar imagen", width / 2, height / 2 + 20);
+  textSize(Math.round(13 * q));
+  fill("#7088BF");
+  text("o haz clic para elegir un archivo · JPG, PNG, WebP o PDF", cx, cy + 46 * q);
 }
 
 // Preview-only guide: never part of an export
@@ -358,7 +372,7 @@ function computeInkMaps(img, wanted = () => true) {
 // Output is w x h; the ink map may be smaller (iw x ih) — halftone only.
 function screenLayer(ink, w, h, cfg, angle, pxScale, iw = w, ih = h) {
   if (cfg.style === "halftone") {
-    return renderHalftone(ink, iw, ih, w, h, cfg.shape, Math.max(0.5, cfg.frequency * pxScale), angle);
+    return renderHalftone(ink, iw, ih, w, h, cfg.shape, cfg.frequency, angle, pxScale);
   }
   if (cfg.style === "dither") {
     return renderDither(ink, w, h, cfg.ditherType, cfg.threshold, pxScale);
@@ -391,87 +405,52 @@ function renderDither(ink, w, h, type, threshold, grain) {
   return upsampleNearest(out, dw, dh, w, h);
 }
 
-// Rotated-grid halftone drawn with canvas paths. Same shapes as p5.riso's
-// halftoneImage(), but sized by area (dot area = ink coverage) and without the
-// 2x-sized intermediate buffers, which matters at 300 dpi.
-function renderHalftone(ink, iw, ih, w, h, shape, cell, angleDeg) {
-  // Average coverage over ~half a cell so dots don't depend on single pixels
-  const k = Math.max(1, cell / 2);
-  const sw = Math.max(1, Math.min(iw, Math.round(w / k)));
-  const sh = Math.max(1, Math.min(ih, Math.round(h / k)));
-  const small = downsample(ink, iw, ih, sw, sh);
+// Halftone with p5.riso's halftoneImage(): one sample per cell, dot size
+// proportional to darkness, then thresholded — the crunchy riso texture.
+// It runs at preview grain (grain = output px per base-preview px) and is
+// scaled up with nearest neighbour, like renderDither(), so exports keep
+// exactly the preview's texture and the library's 2x-size buffers stay small.
+// ink is iw x ih; the result is w x h (0 = full ink, 255 = paper).
+function renderHalftone(ink, iw, ih, w, h, shape, cellPx, angleDeg, grain) {
+  const g = Math.max(1, grain);
+  const dw = Math.max(1, Math.round(w / g));
+  const dh = Math.max(1, Math.round(h / g));
+  const small = downsample(ink, iw, ih, dw, dh);
+  const src = grayToImage(small.map((v) => 255 - v), dw, dh);
 
-  const g = createGraphics(w, h);
-  const ctx = g.drawingContext;
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, w, h);
+  // The library samples pixels[(x + y·w)·4] on a grid of this step: it must be
+  // a whole number of pixels or no dot is ever drawn.
+  const gridsize = Math.max(2, Math.round(cellPx));
+  // p5.riso rotates with the sketch's angleMode, which is radians here
+  const angle = (angleDeg * Math.PI) / 180;
+  const result = withTempGraphics(() =>
+    halftoneImage(src, shape, gridsize, angle, HALFTONE_THRESHOLD),
+  );
 
-  const a = (angleDeg * Math.PI) / 180;
-  const cos = Math.cos(a);
-  const sin = Math.sin(a);
-  const cx = w / 2;
-  const cy = h / 2;
-  const n = Math.ceil(Math.hypot(w, h) / 2 / cell) + 1;
-  const pad = cell / 2;
-
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(a);
-  ctx.beginPath();
-  for (let j = -n; j <= n; j++) {
-    for (let i = -n; i <= n; i++) {
-      const u = i * cell;
-      const v = j * cell;
-      const x = cx + u * cos - v * sin;
-      const y = cy + u * sin + v * cos;
-      if (x < -pad || y < -pad || x >= w + pad || y >= h + pad) continue;
-      const sx = Math.min(sw - 1, Math.max(0, Math.floor((x / w) * sw)));
-      const sy = Math.min(sh - 1, Math.max(0, Math.floor((y / h) * sh)));
-      const d = small[sy * sw + sx] / 255;
-      if (d < 0.01) continue;
-      addDot(ctx, shape, u, v, cell, d);
-    }
-  }
-  ctx.fillStyle = "#000";
-  ctx.fill(); // one fill for the whole path: no seams between cells
-  ctx.restore();
-
-  const data = ctx.getImageData(0, 0, w, h).data;
-  g.remove();
-  const out = new Uint8ClampedArray(w * h);
-  for (let i = 0, p = 0; i < out.length; i++, p += 4) out[i] = data[p];
-  return out;
+  result.loadPixels();
+  const out = new Uint8ClampedArray(dw * dh);
+  for (let i = 0, p = 0; i < out.length; i++, p += 4) out[i] = result.pixels[p];
+  return upsampleNearest(out, dw, dh, w, h);
 }
 
-// Add one dot centred at (u, v) covering ~d of a c x c cell.
-// Above 50% round dots flip to a filled cell with a hole (counter-wound subpath).
-function addDot(ctx, shape, u, v, c, d) {
-  const TAU = Math.PI * 2;
-  if (shape === "line") {
-    const t = c * d;
-    ctx.rect(u - c / 2, v - t / 2, c, t);
-  } else if (shape === "square") {
-    const s = c * Math.sqrt(d);
-    ctx.rect(u - s / 2, v - s / 2, s, s);
-  } else if (shape === "cross") {
-    // Two bars of width t: coverage = 2t - t²
-    const t = c * (1 - Math.sqrt(1 - d));
-    ctx.rect(u - c / 2, v - t / 2, c, t);
-    ctx.rect(u - t / 2, v - c / 2, t, c);
-  } else {
-    const ratio = shape === "ellipse" ? 0.7 : 1;
-    if (d <= 0.5) {
-      const rx = c * Math.sqrt(d / (Math.PI * ratio));
-      ctx.moveTo(u + rx, v);
-      ctx.ellipse(u, v, rx, rx * ratio, 0, 0, TAU);
-    } else {
-      const rx = c * Math.sqrt((1 - d) / (Math.PI * ratio));
-      ctx.rect(u - c / 2, v - c / 2, c, c);
-      if (rx > 0.05) {
-        ctx.moveTo(u + rx, v);
-        ctx.ellipse(u, v, rx, rx * ratio, 0, TAU, 0, true);
-      }
-    }
+// p5.riso's halftoneImage() creates two p5.Graphics (2x the image size) and
+// never removes them: collect whatever fn creates and free it afterwards.
+function withTempGraphics(fn) {
+  const p = _getP5Instance();
+  const own = Object.prototype.hasOwnProperty.call(p, "createGraphics");
+  const original = p.createGraphics;
+  const created = [];
+  p.createGraphics = function (...args) {
+    const g = original.apply(this, args);
+    created.push(g);
+    return g;
+  };
+  try {
+    return fn();
+  } finally {
+    if (own) p.createGraphics = original;
+    else delete p.createGraphics;
+    created.forEach((g) => g.remove());
   }
 }
 
@@ -569,6 +548,7 @@ function runPipeline(stage) {
 
 // Debounced, coalesced recompute. The status is painted before the work starts.
 function schedule(stage, delay = 0) {
+  recordHistory();
   pendingStage = Math.max(pendingStage, stage);
   if (srcImg) setStatus("procesando…");
   clearTimeout(pendingTimer);
@@ -594,6 +574,82 @@ function afterPaint(fn) {
 
 function nextFrame() {
   return new Promise((resolve) => afterPaint(resolve));
+}
+
+// ── HISTORY (undo / redo) ───────────────────────
+
+// Snapshots of the user's settings plus the loaded image (by reference, so
+// they are cheap). schedule() records one after every change; changes closer
+// than HISTORY_COALESCE_MS (a slider drag) become a single step. state.scope
+// (which layer TRAMA is editing) is navigation, not an edit: it's left out.
+const HISTORY_MAX = 100;
+const HISTORY_COALESCE_MS = 400;
+const undoHistory = { past: [], future: [], current: null, timer: null };
+
+function snapshot() {
+  return { state: structuredClone(state), srcImg, srcInfo };
+}
+
+function snapshotKey(snap) {
+  return JSON.stringify({ ...snap.state, scope: null });
+}
+
+function sameSnapshot(a, b) {
+  return !!a && !!b && a.srcImg === b.srcImg && snapshotKey(a) === snapshotKey(b);
+}
+
+function recordHistory() {
+  clearTimeout(undoHistory.timer);
+  undoHistory.timer = setTimeout(commitHistory, HISTORY_COALESCE_MS);
+}
+
+function commitHistory() {
+  clearTimeout(undoHistory.timer);
+  undoHistory.timer = null;
+  const snap = snapshot();
+  if (sameSnapshot(snap, undoHistory.current)) return;
+  if (undoHistory.current) undoHistory.past.push(undoHistory.current);
+  if (undoHistory.past.length > HISTORY_MAX) undoHistory.past.shift();
+  undoHistory.current = snap;
+  undoHistory.future = [];
+  syncHistoryUI();
+}
+
+function restoreSnapshot(snap) {
+  const scope = state.scope;
+  const s = structuredClone(snap.state);
+  Object.keys(s).forEach((k) => (state[k] = s[k]));
+  state.scope = scope; // syncScreenUI falls back to global if that layer is gone
+  srcImg = snap.srcImg;
+  srcInfo = snap.srcInfo;
+  uidCounter = Math.max(uidCounter, ...state.layers.map((L) => L.uid));
+  undoHistory.current = snap; // so the schedule() below doesn't record it again
+  syncUI();
+  schedule(STAGE.REBUILD);
+  syncHistoryUI();
+}
+
+function undo() {
+  if (busy) return;
+  if (undoHistory.timer) commitHistory(); // a change still waiting to be recorded
+  if (!undoHistory.past.length) return setStatus("nada que deshacer");
+  undoHistory.future.push(undoHistory.current);
+  restoreSnapshot(undoHistory.past.pop());
+}
+
+function redo() {
+  if (busy) return;
+  if (undoHistory.timer) commitHistory();
+  if (!undoHistory.future.length) return setStatus("nada que rehacer");
+  undoHistory.past.push(undoHistory.current);
+  restoreSnapshot(undoHistory.future.pop());
+}
+
+function syncHistoryUI() {
+  const u = $("btn-undo");
+  const r = $("btn-redo");
+  if (u) u.disabled = busy || !undoHistory.past.length;
+  if (r) r.disabled = busy || !undoHistory.future.length;
 }
 
 // ── IMAGE LOADING ───────────────────────────────
@@ -917,7 +973,9 @@ async function runExport(job) {
 const $ = (id) => document.getElementById(id);
 
 function setStatus(msg) {
-  $("meta-status").textContent = msg;
+  const el = $("meta-status");
+  el.textContent = msg;
+  el.classList.toggle("working", /^(procesando|cargando|leyendo)/.test(msg));
 }
 
 function setActive(containerId, value, cls = "active") {
@@ -942,6 +1000,29 @@ function bindUI() {
   });
 
   const area = $("canvas-area");
+  // Empty canvas: a click anywhere opens the file picker
+  area.addEventListener("click", (e) => {
+    if (!srcImg && !busy && !e.target.closest(".zoom-controls, .history-controls")) $("file-input").click();
+  });
+
+  // Undo / redo: ⌘Z / ⇧⌘Z (Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y elsewhere)
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  const mod = mac ? "⌘" : "Ctrl+";
+  $("btn-undo").title = `Deshacer (${mod}Z)`;
+  $("btn-redo").title = `Rehacer (${mac ? "⇧⌘Z" : "Ctrl+Y"})`;
+  $("btn-undo").addEventListener("click", undo);
+  $("btn-redo").addEventListener("click", redo);
+  window.addEventListener("keydown", (e) => {
+    if (!(mac ? e.metaKey : e.ctrlKey) || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === "z") {
+      e.preventDefault();
+      e.shiftKey ? redo() : undo();
+    } else if (k === "y" && !mac) {
+      e.preventDefault();
+      redo();
+    }
+  });
   area.addEventListener("dragover", (e) => {
     e.preventDefault();
     area.classList.add("dragging");
@@ -996,6 +1077,7 @@ function bindUI() {
       schedule(STAGE.REBUILD);
     } else if (act === "visible") {
       L.visible = !L.visible;
+      recordHistory();
       renderLayers();
       redraw(); // composite only
     } else if (act === "channel") {
@@ -1104,6 +1186,7 @@ function syncUI() {
   setActive("toggle-orientation", state.orientation);
   setActive("toggle-fit", state.fit);
 
+  $("canvas-area").classList.toggle("empty", !srcImg);
   $("meta-image").textContent = srcInfo
     ? `${srcInfo.name} · ${srcInfo.w} × ${srcInfo.h} px`
     : "sin imagen · también puedes arrastrarla al lienzo";
@@ -1123,12 +1206,10 @@ function syncUI() {
   syncBusy();
 }
 
-const ICON_EYE =
-  '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>';
-const ICON_EYE_OFF =
-  '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z"/><path d="M2.5 2.5l11 11"/></svg>';
-const ICON_REMOVE =
-  '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>';
+// Material Symbols (loaded in index.html)
+const ICON_EYE = '<span class="ms" aria-hidden="true">visibility</span>';
+const ICON_EYE_OFF = '<span class="ms" aria-hidden="true">visibility_off</span>';
+const ICON_REMOVE = '<span class="ms" aria-hidden="true">close</span>';
 
 function renderLayers() {
   const inks = currentWorkshop().inks;
@@ -1152,7 +1233,7 @@ function renderLayers() {
           ${channelToggleHTML(L)}
           <div class="slider-row">
             <div class="slider-head">
-              <span class="field-label">Densidad</span>
+              <span class="row-label">Densidad</span>
               <span class="slider-value">${pct}%</span>
             </div>
             <input type="range" min="0" max="100" step="1" value="${pct}" data-act="density" aria-label="densidad de la capa ${i + 1}" />
@@ -1172,7 +1253,7 @@ function channelToggleHTML(L) {
         `<button class="seg-btn${k === current ? " active" : ""}" type="button" data-act="channel" data-value="${k}">${c.toUpperCase()}</button>`,
     )
     .join("");
-  return `<div class="layer-channel"><span class="field-label">Canal</span><div class="seg">${buttons}</div></div>`;
+  return `<div class="layer-channel"><span class="row-label">Canal</span><div class="seg">${buttons}</div></div>`;
 }
 
 function syncScreenUI() {
@@ -1231,6 +1312,7 @@ function syncScreenUI() {
 }
 
 function syncBusy() {
+  syncHistoryUI();
   document.querySelector(".sidebar").classList.toggle("busy", busy);
   document.querySelectorAll(".btn-export").forEach((b) => {
     b.disabled = busy || !srcImg;

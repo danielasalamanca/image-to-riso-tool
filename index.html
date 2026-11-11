@@ -8,10 +8,22 @@
       name="description"
       content="Separa una imagen en capas de tinta para imprimir en risografía."
     />
+    <meta name="theme-color" content="#FBFAF6" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" id="favicon" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Logo wordmark: Archivo Expanded ExtraBold, only the letters of "image to riso" -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,800&text=image%20to%20riso&display=block"
+      rel="stylesheet"
+    />
+    <!-- Material Symbols, only the icons used here -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,300,0,0&icon_names=add,close,crop_landscape,crop_portrait,download,expand_more,redo,remove,undo,upload_file,visibility,visibility_off&display=block"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="css/style.css" />
@@ -19,163 +31,244 @@
   <body>
     <div class="app">
       <aside class="sidebar">
+        <!-- LOGO: two inks overprinted; the blue one drifts to show the overlap -->
         <header class="sidebar-head">
-          <h1 class="sidebar-title">image to riso</h1>
+          <div class="logo" aria-label="image to riso">
+            <svg class="logo-mark" viewBox="0 0 44 28" aria-hidden="true">
+              <circle class="mark-pink" cx="14" cy="14" r="11" />
+              <circle class="mark-blue" cx="30" cy="14" r="11" />
+            </svg>
+            <span class="logo-word" aria-hidden="true">
+              <span class="word-pink">image to riso</span>
+              <span class="word-blue">image to riso</span>
+            </span>
+          </div>
+          <p class="tagline">separador de tintas para risografía</p>
         </header>
 
         <div class="sidebar-body">
-          <!-- IMAGE -->
-          <section class="section">
-            <button class="btn btn-primary" id="btn-load" type="button">Cargar imagen o PDF</button>
-            <input
-              type="file"
-              id="file-input"
-              accept="image/jpeg,image/png,image/webp,application/pdf,.pdf"
-              hidden
-            />
-            <p class="meta" id="meta-image">sin imagen · también puedes arrastrarla al lienzo</p>
-          </section>
-
-          <!-- WORKSHOP -->
-          <section class="section">
-            <h2 class="label">Taller</h2>
-            <div class="seg" id="toggle-workshop">
-              <button class="seg-btn" type="button" data-value="aoi">aoi</button>
-              <button class="seg-btn" type="button" data-value="rata">rata</button>
-              <button class="seg-btn" type="button" data-value="lab360">lab360</button>
+          <!-- 01 IMAGE -->
+          <details class="step" open>
+            <summary class="step-head">
+              <span class="step-num">01</span>
+              <span class="step-title">Imagen</span>
+              <span class="ms step-caret" aria-hidden="true">expand_more</span>
+            </summary>
+            <div class="step-body">
+              <button class="btn btn-primary" id="btn-load" type="button">
+                <span class="ms" aria-hidden="true">upload_file</span>Cargar imagen o PDF
+              </button>
+              <input
+                type="file"
+                id="file-input"
+                accept="image/jpeg,image/png,image/webp,application/pdf,.pdf"
+                hidden
+              />
+              <p class="meta" id="meta-image">sin imagen · también puedes arrastrarla al lienzo</p>
             </div>
-          </section>
+          </details>
 
-          <!-- SEPARATION MODE -->
-          <section class="section">
-            <h2 class="label">Separación</h2>
-            <div class="seg" id="group-mode">
-              <button class="seg-btn" type="button" data-value="auto">Auto</button>
-              <button class="seg-btn" type="button" data-value="cmyk">CMYK</button>
-              <button class="seg-btn" type="button" data-value="rgb">RGB</button>
-            </div>
-            <p class="meta" id="meta-mode"></p>
-          </section>
-
-          <!-- LAYERS -->
-          <section class="section">
-            <div class="label-row">
-              <h2 class="label">Capas</h2>
-              <span class="meta-inline" id="meta-layers"></span>
-            </div>
-            <div id="layer-list"></div>
-            <button class="btn" id="btn-add-layer" type="button">+ Añadir capa</button>
-          </section>
-
-          <!-- SCREENING -->
-          <section class="section">
-            <h2 class="label">Trama</h2>
-            <div class="field">
-              <span class="field-label">Aplicar a</span>
-              <div class="seg" id="toggle-scope"></div>
-            </div>
-            <button class="btn btn-small" id="btn-follow" type="button">Usar trama global</button>
-            <p class="meta" id="meta-scope"></p>
-
-            <div class="field">
-              <span class="field-label">Estilo</span>
-              <div class="seg" id="group-style">
-                <button class="seg-btn" type="button" data-value="continuous">Continuo</button>
-                <button class="seg-btn" type="button" data-value="halftone">Halftone</button>
-                <button class="seg-btn" type="button" data-value="dither">Dither</button>
-              </div>
-            </div>
-
-            <div id="panel-halftone">
-              <div class="field">
-                <span class="field-label">Forma</span>
-                <div class="seg seg-grid" id="toggle-shape">
-                  <button class="seg-btn" type="button" data-value="circle">Círculo</button>
-                  <button class="seg-btn" type="button" data-value="ellipse">Elipse</button>
-                  <button class="seg-btn" type="button" data-value="square">Cuadrado</button>
-                  <button class="seg-btn" type="button" data-value="line">Línea</button>
-                  <button class="seg-btn" type="button" data-value="cross">Cruz</button>
+          <!-- 02 INKS -->
+          <details class="step" open>
+            <summary class="step-head">
+              <span class="step-num">02</span>
+              <span class="step-title">Tintas</span>
+              <span class="ms step-caret" aria-hidden="true">expand_more</span>
+            </summary>
+            <div class="step-body">
+              <div class="row">
+                <span class="row-label">Taller</span>
+                <div class="seg" id="toggle-workshop">
+                  <button class="seg-btn" type="button" data-value="aoi">aoi</button>
+                  <button class="seg-btn" type="button" data-value="rata">rata</button>
+                  <button class="seg-btn" type="button" data-value="lab360">lab360</button>
                 </div>
               </div>
-              <div class="slider-row">
-                <div class="slider-head">
-                  <span class="field-label">Frecuencia</span>
-                  <span class="slider-value" id="val-frequency"></span>
+              <div class="row">
+                <span class="row-label">Separar</span>
+                <div class="seg" id="group-mode">
+                  <button class="seg-btn" type="button" data-value="auto">Auto</button>
+                  <button class="seg-btn" type="button" data-value="cmyk">CMYK</button>
+                  <button class="seg-btn" type="button" data-value="rgb">RGB</button>
                 </div>
-                <input type="range" id="slider-frequency" min="1" max="24" step="0.5" />
               </div>
-              <div class="slider-row" id="row-angle">
-                <div class="slider-head">
-                  <span class="field-label">Ángulo</span>
-                  <span class="slider-value" id="val-angle"></span>
-                </div>
-                <input type="range" id="slider-angle" min="0" max="90" step="1" />
-              </div>
-              <p class="meta" id="meta-angles"></p>
-            </div>
+              <p class="meta" id="meta-mode"></p>
 
-            <div id="panel-dither">
-              <div class="field">
-                <span class="field-label">Tipo</span>
-                <div class="seg seg-grid seg-grid-2" id="toggle-dither">
-                  <button class="seg-btn" type="button" data-value="atkinson">Atkinson</button>
-                  <button class="seg-btn" type="button" data-value="floydsteinberg">Floyd–Steinberg</button>
-                  <button class="seg-btn" type="button" data-value="bayer">Bayer</button>
-                  <button class="seg-btn" type="button" data-value="none">Umbral</button>
+              <div class="sub-head">
+                <span class="row-label">Capas</span>
+                <span class="meta-inline" id="meta-layers"></span>
+              </div>
+              <div id="layer-list"></div>
+              <button class="btn btn-ghost" id="btn-add-layer" type="button">
+                <span class="ms" aria-hidden="true">add</span>Añadir capa
+              </button>
+            </div>
+          </details>
+
+          <!-- 03 SCREENING -->
+          <details class="step" open>
+            <summary class="step-head">
+              <span class="step-num">03</span>
+              <span class="step-title">Trama</span>
+              <span class="ms step-caret" aria-hidden="true">expand_more</span>
+            </summary>
+            <div class="step-body">
+              <div class="row">
+                <span class="row-label">Editar</span>
+                <div class="seg" id="toggle-scope"></div>
+              </div>
+              <p class="meta" id="meta-scope"></p>
+              <button class="btn btn-small" id="btn-follow" type="button">Usar trama global</button>
+
+              <div class="row">
+                <span class="row-label">Estilo</span>
+                <div class="seg" id="group-style">
+                  <button class="seg-btn" type="button" data-value="continuous">Continuo</button>
+                  <button class="seg-btn" type="button" data-value="halftone">Halftone</button>
+                  <button class="seg-btn" type="button" data-value="dither">Dither</button>
                 </div>
               </div>
-              <div class="slider-row">
-                <div class="slider-head">
-                  <span class="field-label">Umbral</span>
-                  <span class="slider-value" id="val-threshold"></span>
+
+              <div id="panel-halftone">
+                <div class="field">
+                  <span class="row-label">Forma</span>
+                  <div class="seg seg-grid" id="toggle-shape">
+                    <button class="seg-btn" type="button" data-value="circle">Círculo</button>
+                    <button class="seg-btn" type="button" data-value="ellipse">Elipse</button>
+                    <button class="seg-btn" type="button" data-value="square">Cuadrado</button>
+                    <button class="seg-btn" type="button" data-value="line">Línea</button>
+                    <button class="seg-btn" type="button" data-value="cross">Cruz</button>
+                  </div>
                 </div>
-                <input type="range" id="slider-threshold" min="1" max="254" step="1" />
+                <div class="slider-row">
+                  <div class="slider-head">
+                    <span class="row-label">Frecuencia</span>
+                    <span class="slider-value" id="val-frequency"></span>
+                  </div>
+                  <input type="range" id="slider-frequency" min="2" max="24" step="1" />
+                </div>
+                <div class="slider-row" id="row-angle">
+                  <div class="slider-head">
+                    <span class="row-label">Ángulo</span>
+                    <span class="slider-value" id="val-angle"></span>
+                  </div>
+                  <input type="range" id="slider-angle" min="0" max="90" step="1" />
+                </div>
+                <p class="meta" id="meta-angles"></p>
+              </div>
+
+              <div id="panel-dither">
+                <div class="field">
+                  <span class="row-label">Tipo</span>
+                  <div class="seg seg-grid seg-grid-2" id="toggle-dither">
+                    <button class="seg-btn" type="button" data-value="atkinson">Atkinson</button>
+                    <button class="seg-btn" type="button" data-value="floydsteinberg">Floyd–Steinberg</button>
+                    <button class="seg-btn" type="button" data-value="bayer">Bayer</button>
+                    <button class="seg-btn" type="button" data-value="none">Umbral</button>
+                  </div>
+                </div>
+                <div class="slider-row">
+                  <div class="slider-head">
+                    <span class="row-label">Umbral</span>
+                    <span class="slider-value" id="val-threshold"></span>
+                  </div>
+                  <input type="range" id="slider-threshold" min="1" max="254" step="1" />
+                </div>
               </div>
             </div>
-          </section>
+          </details>
+
+          <!-- 04 PAGE -->
+          <details class="step" open>
+            <summary class="step-head">
+              <span class="step-num">04</span>
+              <span class="step-title">Página</span>
+              <span class="ms step-caret" aria-hidden="true">expand_more</span>
+            </summary>
+            <div class="step-body">
+              <div class="row">
+                <span class="row-label">Formato</span>
+                <div class="seg" id="toggle-format">
+                  <button class="seg-btn" type="button" data-value="A4">A4</button>
+                  <button class="seg-btn" type="button" data-value="A3">A3</button>
+                </div>
+              </div>
+              <div class="row">
+                <span class="row-label">Orientación</span>
+                <div class="seg" id="toggle-orientation">
+                  <button class="seg-btn" type="button" data-value="portrait" title="Vertical" aria-label="Vertical">
+                    <span class="ms" aria-hidden="true">crop_portrait</span>
+                  </button>
+                  <button class="seg-btn" type="button" data-value="landscape" title="Horizontal" aria-label="Horizontal">
+                    <span class="ms" aria-hidden="true">crop_landscape</span>
+                  </button>
+                </div>
+              </div>
+              <div class="row">
+                <span class="row-label">Ajuste</span>
+                <div class="seg" id="toggle-fit">
+                  <button class="seg-btn" type="button" data-value="contain" title="Muestra la imagen completa">Contener</button>
+                  <button class="seg-btn" type="button" data-value="cover" title="Cubre el área imprimible y recorta lo que sobra">Rellenar</button>
+                </div>
+              </div>
+            </div>
+          </details>
         </div>
 
-        <!-- FORMAT + EXPORT -->
+        <!-- 05 EXPORT: always visible -->
         <footer class="sidebar-foot">
-          <h2 class="label">Página</h2>
-          <div class="page-row">
-            <div class="seg" id="toggle-format">
-              <button class="seg-btn" type="button" data-value="A4">A4</button>
-              <button class="seg-btn" type="button" data-value="A3">A3</button>
-            </div>
-            <div class="seg" id="toggle-orientation">
-              <button class="seg-btn" type="button" data-value="portrait" title="Vertical" aria-label="Vertical">
-                <svg width="10" height="13" viewBox="0 0 10 13" aria-hidden="true"><rect x="0.5" y="0.5" width="9" height="12" rx="1" fill="none" stroke="currentColor" /></svg>
-              </button>
-              <button class="seg-btn" type="button" data-value="landscape" title="Horizontal" aria-label="Horizontal">
-                <svg width="13" height="10" viewBox="0 0 13 10" aria-hidden="true"><rect x="0.5" y="0.5" width="12" height="9" rx="1" fill="none" stroke="currentColor" /></svg>
-              </button>
-            </div>
+          <div class="step-head step-head-static">
+            <span class="step-num">05</span>
+            <span class="step-title">Exportar</span>
+            <span class="meta-inline">300 dpi</span>
           </div>
-          <div class="seg" id="toggle-fit">
-            <button class="seg-btn" type="button" data-value="contain">Contener</button>
-            <button class="seg-btn" type="button" data-value="cover">Rellenar</button>
-          </div>
+          <div class="export-table">
+            <span class="xt-label" title="Composición de todas las tintas, como saldría impresa">Color</span>
+            <button class="btn-export" id="btn-pdf-color" type="button" title="PDF: composición + una página por capa en su color">
+              <span class="ms" aria-hidden="true">download</span>PDF
+            </button>
+            <button class="btn-export" id="btn-png-color" type="button" title="PNG: solo la composición">
+              <span class="ms" aria-hidden="true">download</span>PNG
+            </button>
 
-          <h2 class="label label-export">Exportar</h2>
-          <div class="export-grid">
-            <button class="btn btn-primary btn-export" id="btn-pdf-color" type="button">PDF color</button>
-            <button class="btn btn-export" id="btn-png-color" type="button">PNG color</button>
-            <button class="btn btn-export" id="btn-pdf-bw" type="button">PDF b/n</button>
-            <button class="btn btn-export" id="btn-png-layers" type="button">PNG capas b/n</button>
-            <button class="btn btn-export" id="btn-pdf-layers-color" type="button">PDF capas color</button>
-            <button class="btn btn-export" id="btn-png-layers-color" type="button">PNG capas color</button>
+            <span class="xt-label" title="Una página o archivo por capa, en el color de su tinta">Capas color</span>
+            <button class="btn-export" id="btn-pdf-layers-color" type="button" title="PDF: una página por capa en su color">
+              <span class="ms" aria-hidden="true">download</span>PDF
+            </button>
+            <button class="btn-export" id="btn-png-layers-color" type="button" title="PNG: un archivo por capa en su color">
+              <span class="ms" aria-hidden="true">download</span>PNG
+            </button>
+
+            <span class="xt-label" title="Másters para la riso: negro = 100 % de tinta">Másters b/n</span>
+            <button class="btn-export" id="btn-pdf-bw" type="button" title="PDF: una página por capa en escala de grises">
+              <span class="ms" aria-hidden="true">download</span>PDF
+            </button>
+            <button class="btn-export" id="btn-png-layers" type="button" title="PNG: un archivo por capa en escala de grises">
+              <span class="ms" aria-hidden="true">download</span>PNG
+            </button>
           </div>
-          <p class="meta status" id="meta-status">carga una imagen para empezar</p>
+          <p class="status" id="meta-status">carga una imagen para empezar</p>
         </footer>
       </aside>
 
       <main class="canvas-area" id="canvas-area">
         <div class="canvas-wrapper" id="canvas-wrapper"></div>
+        <div class="history-controls" role="group" aria-label="historial">
+          <button class="zoom-btn" id="btn-undo" type="button" aria-label="deshacer" disabled>
+            <span class="ms" aria-hidden="true">undo</span>
+          </button>
+          <button class="zoom-btn" id="btn-redo" type="button" aria-label="rehacer" disabled>
+            <span class="ms" aria-hidden="true">redo</span>
+          </button>
+        </div>
         <div class="zoom-controls" role="group" aria-label="zoom">
-          <button class="btn btn-small" id="zoom-out" type="button" aria-label="alejar" title="Alejar (-)">−</button>
-          <button class="btn btn-small" id="zoom-fit" type="button" title="Ajustar (0)"><span id="zoom-level">100%</span></button>
-          <button class="btn btn-small" id="zoom-in" type="button" aria-label="acercar" title="Acercar (+)">+</button>
+          <button class="zoom-btn" id="zoom-out" type="button" aria-label="alejar" title="Alejar (-)">
+            <span class="ms" aria-hidden="true">remove</span>
+          </button>
+          <button class="zoom-btn zoom-level" id="zoom-fit" type="button" title="Ajustar (0)"><span id="zoom-level">100%</span></button>
+          <button class="zoom-btn" id="zoom-in" type="button" aria-label="acercar" title="Acercar (+)">
+            <span class="ms" aria-hidden="true">add</span>
+          </button>
         </div>
       </main>
     </div>
@@ -184,6 +277,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="js/vendor/p5.riso.js"></script>
+    <script src="js/brand.js"></script>
     <script src="js/inks.js"></script>
     <script src="js/separation.js"></script>
     <script src="js/sketch.js"></script>
